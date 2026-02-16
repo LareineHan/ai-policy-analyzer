@@ -1,0 +1,21 @@
+{
+  "name": "AI Policy Analyzer",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  
+  "postCreateCommand": "pip install --break-system-packages google-generativeai PyMuPDF python-docx Pillow flask",
+  
+  "forwardPorts": [5000]
+}
+
+// Python 3.11 환경
+// 필요한 라이브러리 자동 설치
+// Flask port 5000 자동 포워딩

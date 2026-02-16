@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Policy Analyzer - NAU</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #003f87 0%, #001f43 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 36px; margin-bottom: 8px; font-weight: 700; }
+        .header p { font-size: 16px; opacity: 0.85; }
+        .nau-badge {
+            display: inline-block;
+            background: #ffb511;
+            color: #003f87;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 800;
+            margin-top: 8px;
+            letter-spacing: 1.5px;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        @media (max-width: 900px) { .main-content { grid-template-columns: 1fr; } }
+        .panel {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        }
+        .panel h2 { color: #003f87; margin-bottom: 20px; font-size: 18px; font-weight: 600; }
+
+        .upload-label {
+            display: block;
+            border: 2px dashed #bbb;
+            border-radius: 12px;
+            padding: 28px 20px;
+            text-align: center;
+            background: #fafafa;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+        .upload-label:hover { border-color: #003f87; background: #f0f4ff; }
+        .upload-label.has-file { border-color: #003f87; background: #f0f4ff; }
+        .upload-icon { font-size: 40px; margin-bottom: 8px; }
+        .upload-hint { color: #999; font-size: 12px; margin-top: 4px; }
+        .file-chosen { color: #003f87; font-weight: 600; margin-top: 8px; font-size: 13px; min-height: 20px; }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        textarea:focus { outline: none; border-color: #003f87; }
+
+        .analyze-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #003f87, #ffb511);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 16px;
+        }
+        .analyze-btn:hover { opacity: 0.9; }
+        .analyze-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        .results { display: none; }
+        .results.show { display: block; }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 18px;
+            border-left: 4px solid #003f87;
+        }
+        .result-card h3 { color: #003f87; font-size: 15px; margin-bottom: 12px; }
+        .result-card .body { color: #444; line-height: 1.75; font-size: 14px; }
+
+        .verdict-pill {
+            display: inline-block;
+            padding: 8px 18px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        .v-allowed { background: #d4edda; color: #155724; }
+        .v-gray    { background: #fff3cd; color: #7d5a00; }
+        .v-violation { background: #f8d7da; color: #721c24; }
+
+        .risk-row { display: flex; align-items: center; gap: 14px; margin: 12px 0; }
+        .risk-num { font-size: 26px; font-weight: 800; color: #003f87; min-width: 72px; }
+        .risk-track { flex: 1; height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; }
+        .risk-bar { height: 100%; border-radius: 5px; }
+        .r-low  { background: linear-gradient(90deg, #28a745, #20c997); }
+        .r-med  { background: linear-gradient(90deg, #ffc107, #ff9800); }
+        .r-high { background: linear-gradient(90deg, #fd7e14, #e83e8c); }
+        .r-crit { background: linear-gradient(90deg, #dc3545, #c82333); }
+
+        .rec-box { padding: 13px 15px; border-radius: 10px; margin: 8px 0; border-left: 4px solid; }
+        .rec-safe     { background: #d4edda; border-color: #28a745; }
+        .rec-moderate { background: #fff3cd; border-color: #ffb511; }
+        .rec-avoid    { background: #f8d7da; border-color: #dc3545; }
+        .rec-box strong { display: block; margin-bottom: 6px; color: #003f87; font-size: 13px; }
+        .rec-box p { color: #555; font-size: 13px; line-height: 1.6; margin: 0; }
+
+        .score-display {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 4px;
+            padding: 10px 20px;
+            background: white;
+            border-radius: 30px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            margin: 12px 0;
+        }
+        .score-big {
+            font-size: 38px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #003f87, #ffb511);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .score-denom { font-size: 18px; color: #999; font-weight: 600; }
+
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .icon-btn {
+            padding: 11px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .icon-btn:hover { opacity: 0.85; }
+        .icon-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .btn-blue { background: linear-gradient(135deg, #003f87, #0060cc); color: white; }
+        .btn-gold { background: linear-gradient(135deg, #ffb511, #e6a000); color: #003f87; }
+
+        .fulltext-box {
+            display: none;
+            margin-top: 16px;
+            padding: 16px;
+            background: white;
+            border-radius: 10px;
+            max-height: 450px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 12px;
+            line-height: 1.8;
+            font-family: monospace;
+            border: 1px solid #e0e0e0;
+        }
+
+        .loading { text-align: center; padding: 50px 20px; color: #003f87; display: none; }
+        .spinner {
+            width: 42px; height: 42px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #003f87;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin: 0 auto 14px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty { text-align: center; padding: 60px 20px; color: #bbb; }
+        .empty-icon { font-size: 56px; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📋 AI Policy Analyzer</h1>
+        <p>Upload any policy document and check if your AI usage complies</p>
+        <div class="nau-badge">NAU EDITION</div>
+    </div>
+
+    <div class="main-content">
+        <!-- LEFT -->
+        <div class="panel">
+            <h2>📄 Upload Policy & Describe Action</h2>
+
+            <label for="policyFile" class="upload-label" id="uploadLabel">
+                <div class="upload-icon">📎</div>
+                <div style="color:#555; font-size:14px;"><strong style="color:#003f87;">Click to choose file</strong> or drag & drop</div>
+                <div class="upload-hint">PDF, DOCX, TXT, PNG, JPG (max 16MB)</div>
+                <div class="file-chosen" id="fileChosen"></div>
+            </label>
+            <input type="file" id="policyFile" style="display:none"
+                   accept=".pdf,.docx,.txt,.png,.jpg,.jpeg">
+
+            <label style="display:block; margin-bottom:8px; font-weight:600; color:#333;">
+                What did you do?
+            </label>
+            <textarea id="actionText"
+                placeholder="Example: I used ChatGPT to brainstorm ideas for my essay, then wrote everything myself."></textarea>
+
+            <button class="analyze-btn" id="analyzeBtn">
+                🔍 Analyze Compliance
+            </button>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="panel">
+            <h2>📊 Analysis Results</h2>
+            <div class="loading" id="loadingDiv">
+                <div class="spinner"></div>
+                <p>Analyzing policy...</p>
+            </div>
+            <div class="results" id="resultsDiv">
+                <div id="resultsContent"></div>
+            </div>
+            <div class="empty" id="emptyDiv">
+                <div class="empty-icon">📝</div>
+                <p>Upload a policy and describe your action to see results</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var fileInput = document.getElementById('policyFile');
+    var fileChosen = document.getElementById('fileChosen');
+    var uploadLabel = document.getElementById('uploadLabel');
+    var analyzeBtn = document.getElementById('analyzeBtn');
+    var loadingDiv = document.getElementById('loadingDiv');
+    var resultsDiv = document.getElementById('resultsDiv');
+    var resultsContent = document.getElementById('resultsContent');
+    var emptyDiv = document.getElementById('emptyDiv');
+    var storedFullText = '';
+    var storedPdfText = '';
+
+    // 파일 선택 이벤트
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            fileChosen.textContent = 'Selected: ' + this.files[0].name;
+            uploadLabel.classList.add('has-file');
+        }
+    });
+
+    // Drag & Drop
+    uploadLabel.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.style.borderColor = '#ffb511';
+    });
+    uploadLabel.addEventListener('dragleave', function() {
+        this.style.borderColor = '';
+    });
+    uploadLabel.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.style.borderColor = '';
+        var files = e.dataTransfer.files;
+        if (files.length > 0) {
+            try {
+                var dt = new DataTransfer();
+                dt.items.add(files[0]);
+                fileInput.files = dt.files;
+            } catch(err) {
+                window._dropFile = files[0];
+            }
+            fileChosen.textContent = 'Selected: ' + files[0].name;
+            uploadLabel.classList.add('has-file');
+        }
+    });
+
+    // Analyze 버튼
+    analyzeBtn.addEventListener('click', function() {
+        var file = (fileInput.files && fileInput.files.length > 0)
+                   ? fileInput.files[0]
+                   : window._dropFile;
+        var action = document.getElementById('actionText').value.trim();
+
+        if (!file) { alert('Please choose a policy file.'); return; }
+        if (!action) { alert('Please describe your action.'); return; }
+
+        // UI
+        emptyDiv.style.display = 'none';
+        resultsDiv.classList.remove('show');
+        loadingDiv.style.display = 'block';
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = 'Analyzing...';
+
+        var fd = new FormData();
+        fd.append('policy', file);
+        fd.append('action', action);
+
+        fetch('/analyze', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            storedFullText = data.full_text || '';
+            storedPdfText = data.pdf_text || storedFullText;
+            render(data);
+        })
+        .catch(function(err) {
+            resultsContent.innerHTML =
+                '<div class="result-card" style="border-left-color:#dc3545;">' +
+                '<h3>Error</h3><div class="body">' + err.message + '</div></div>';
+            resultsDiv.classList.add('show');
+        })
+        .finally(function() {
+            loadingDiv.style.display = 'none';
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = 'Analyze Compliance';
+        });
+    });
+
+    function fmt(text) {
+        if (!text) return '';
+        // 단독 이모지(텍스트 없이 이모지만) 제거
+        text = text.replace(/^[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\uFE0F\s]+$/gmu, '');
+        // 완전한 **bold** 처리
+        text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // 잘린 단독 ** 제거
+        text = text.replace(/\*\*/g, '');
+        text = text.replace(/\*/g, '');
+        // italic: *text* (단독 *)
+        text = text.replace(/(?<![*])\*([^*\n]+)\*(?![*])/g, '<em>$1</em>');
+        // line breaks
+        text = text.replace(/\n/g, '<br>');
+        return text.trim();
+    }
+    // 하위 호환
+    var bold = fmt;
+
+    function formatCritique(text) {
+        if (!text) return '';
+        // \n을 기준으로 줄 분리
+        var lines = text.split('\n').filter(function(l) { return l.trim(); });
+        var html = '';
+        var inList = false;
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (!line) continue;
+            // • 로 시작하는 줄 = 리스트 아이템
+            if (line.charAt(0) === '\u2022' || line.startsWith('- ')) {
+                if (!inList) {
+                    html += '<ul style="margin:10px 0; padding-left:20px; list-style:none;">';
+                    inList = true;
+                }
+                var item = line.replace(/^[•\-]\s*/, '');
+                // "LABEL: text" 형태면 LABEL bold 처리
+                item = item.replace(/^([A-Z][A-Z\s]+):\s*/, '<strong style="color:#003f87;">$1:</strong> ');
+                html += '<li style="margin-bottom:10px; padding-left:4px; border-left:3px solid #ffb511; padding:6px 0 6px 12px;">' + fmt(item) + '</li>';
+            } else {
+                if (inList) { html += '</ul>'; inList = false; }
+                // 일반 텍스트 줄
+                html += '<p style="margin:6px 0; line-height:1.7; color:#555;">' + fmt(line) + '</p>';
+            }
+        }
+        if (inList) html += '</ul>';
+        return html || '<p style="line-height:1.8;">' + fmt(text) + '</p>';
+    }
+
+    function render(data) {
+        var h = '';
+
+        if (data.verdict) {
+            var vtype = data.verdict.type;
+            var vcls = vtype === 'allowed' ? 'v-allowed' : vtype === 'violation' ? 'v-violation' : 'v-gray';
+            var vtext = vtype === 'allowed' ? 'ALLOWED' : vtype === 'violation' ? 'VIOLATION' : 'GRAY AREA';
+            h += '<div class="result-card">';
+            h += '<h3>⚖️ Verdict</h3>';
+            h += '<span class="verdict-pill ' + vcls + '">' + vtext + '</span>';
+            h += '<div class="body">' + bold(data.verdict.reasoning) + '</div>';
+            h += '</div>';
+        }
+
+        if (data.risk) {
+            h += '<div class="result-card">';
+            h += '<h3>Risk Assessment</h3>';
+            h += '<div class="risk-row">';
+            h += '<div class="risk-num">' + data.risk.score + '/100</div>';
+            h += '<div class="risk-track"><div class="risk-bar ' + data.risk.level + '" style="width:' + data.risk.score + '%"></div></div>';
+            h += '</div>';
+            h += '<div class="body">' + bold(data.risk.explanation) + '</div>';
+            h += '</div>';
+        }
+
+        if (data.recommendations && data.recommendations.length > 0) {
+            h += '<div class="result-card"><h3>Recommendations</h3>';
+            for (var i = 0; i < data.recommendations.length; i++) {
+                var r = data.recommendations[i];
+                var rcls = r.type === 'safe' ? 'rec-safe' : r.type === 'moderate' ? 'rec-moderate' : 'rec-avoid';
+                h += '<div class="rec-box ' + rcls + '">';
+                h += '<strong>' + r.label + '</strong>';
+                h += '<p>' + bold(r.text) + '</p>';
+                h += '</div>';
+            }
+            h += '</div>';
+        }
+
+        if (data.policy_score !== undefined) {
+            h += '<div class="result-card">';
+            h += '<h3>Policy Effectiveness</h3>';
+            h += '<div class="score-display"><span class="score-big">' + data.policy_score + '</span><span class="score-denom">/100</span></div>';
+            h += '<div class="body">' + formatCritique(data.policy_critique || '') + '</div>';
+            h += '</div>';
+        }
+
+        if (storedFullText) {
+            h += '<div class="result-card">';
+            h += '<div class="btn-row">';
+            h += '<button class="icon-btn btn-blue" id="toggleBtn">Show Complete Analysis</button>';
+            h += '<button class="icon-btn btn-gold" id="pdfBtn">Download PDF</button>';
+            h += '</div>';
+            h += '<div class="fulltext-box" id="fullTextBox"></div>';
+            h += '</div>';
+        }
+
+        resultsContent.innerHTML = h;
+        resultsDiv.classList.add('show');
+
+        // 버튼 이벤트 바인딩
+        var toggleBtn = document.getElementById('toggleBtn');
+        var pdfBtn = document.getElementById('pdfBtn');
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                var box = document.getElementById('fullTextBox');
+                if (box.style.display === 'block') {
+                    box.style.display = 'none';
+                    this.textContent = 'Show Complete Analysis';
+                } else {
+                    box.textContent = storedFullText;
+                    box.style.display = 'block';
+                    this.textContent = 'Hide Complete Analysis';
+                }
+            });
+        }
+
+        if (pdfBtn) {
+            pdfBtn.addEventListener('click', function() {
+                this.disabled = true;
+                this.textContent = 'Generating...';
+                makePDF(storedPdfText || storedFullText);
+                this.disabled = false;
+                this.textContent = 'Download PDF';
+            });
+        }
+    }
+
+    function cleanForPDF(text) {
+        // 이모지 제거 (유니코드 범위)
+        text = text.replace(/[\u{1F000}-\u{1FFFF}]/gu, '');
+        text = text.replace(/[\u2600-\u27BF]/g, '');
+        text = text.replace(/[\uFE00-\uFE0F]/g, '');
+        text = text.replace(/[\u{2700}-\u{27BF}]/gu, '');
+        // 구분선 변환
+        text = text.replace(/\u2501+/g, '---');
+        text = text.replace(/\u2500+/g, '---');
+        text = text.replace(/[-]{3,}/g, '---');
+        // 마크다운 제거
+        text = text.replace(/\*\*(.+?)\*\*/g, '$1');
+        text = text.replace(/\*(.+?)\*/g, '$1');
+        // 섹션 헤더
+        text = text.replace(/RELEVANT POLICY SECTIONS/g, '[ RELEVANT POLICY SECTIONS ]');
+        text = text.replace(/COMPLIANCE VERDICT/g,       '[ COMPLIANCE VERDICT ]');
+        text = text.replace(/RISK ASSESSMENT/g,          '[ RISK ASSESSMENT ]');
+        text = text.replace(/PROFESSOR INTERPRETATIONS/g,'[ PROFESSOR INTERPRETATIONS ]');
+        text = text.replace(/RECOMMENDATIONS/g,          '[ RECOMMENDATIONS ]');
+        text = text.replace(/POLICY CRITIQUE/g,          '[ POLICY CRITIQUE ]');
+        // 연속 빈줄 정리
+        text = text.replace(/\n{3,}/g, '\n\n');
+        return text.trim();
+    }
+
+    function makePDF(text) {
+        try {
+            var cls = window.jspdf.jsPDF;
+            var doc = new cls();
+
+            // Header
+            doc.setFillColor(0, 63, 135);
+            doc.rect(0, 0, 210, 32, 'F');
+            doc.setFillColor(255, 181, 17);
+            doc.rect(0, 30, 210, 3, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(17);
+            doc.setFont('helvetica', 'bold');
+            doc.text('AI Policy Analysis Report', 105, 15, { align: 'center' });
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Northern Arizona University  |  ' + new Date().toLocaleDateString(), 105, 24, { align: 'center' });
+
+            // 이모지/특수문자 제거 후 줄 단위 처리
+            var cleanText = cleanForPDF(text);
+            var lines = cleanText.split('\n');
+            var y = 44;
+
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim();
+
+                if (line.match(/^\[ .+ \]$/)) {
+                    // 섹션 헤더
+                    if (y > 268) { doc.addPage(); y = 18; }
+                    y += 3;
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(11);
+                    doc.setTextColor(0, 63, 135);
+                    doc.text(line, 16, y);
+                    doc.setTextColor(30, 30, 30);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(10);
+                    y += 8;
+                } else if (line === '---') {
+                    // 구분선
+                    if (y > 280) { doc.addPage(); y = 18; }
+                    doc.setDrawColor(200, 200, 200);
+                    doc.line(16, y, 194, y);
+                    y += 5;
+                } else {
+                    // 일반 텍스트 (긴 줄 wrap)
+                    var wrapped = doc.splitTextToSize(line || ' ', 178);
+                    for (var j = 0; j < wrapped.length; j++) {
+                        if (y > 280) { doc.addPage(); y = 18; }
+                        doc.setFontSize(10);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(30, 30, 30);
+                        doc.text(wrapped[j], 16, y);
+                        y += 6;
+                    }
+                }
+            }
+
+            // Footer
+            var total = doc.internal.getNumberOfPages();
+            for (var p = 1; p <= total; p++) {
+                doc.setPage(p);
+                doc.setFontSize(8);
+                doc.setTextColor(160, 160, 160);
+                doc.text('NAU AI Policy Analyzer  |  Page ' + p + ' of ' + total, 105, 291, { align: 'center' });
+            }
+
+            doc.save('NAU-Policy-Analysis-' + new Date().toISOString().slice(0, 10) + '.pdf');
+        } catch(e) {
+            alert('PDF error: ' + e.message);
+        }
+    }
+
+})();
+</script>
+</body>
+</html>

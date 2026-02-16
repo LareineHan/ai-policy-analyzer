@@ -1,0 +1,6 @@
+google.genai
+PyMuPDF
+python-docx
+Pillow
+flask
+python-dotenv
